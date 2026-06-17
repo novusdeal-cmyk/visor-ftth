@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Visor FTTH — NOVUS</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:"Segoe UI",sans-serif;background:#0f1117;color:#e2e8f0;min-height:100vh;}
+#screen-home{display:flex;flex-direction:column;min-height:100vh;}
+.home-header{background:#0f1117;border-bottom:1px solid #2d3748;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+.home-header h1{font-size:16px;font-weight:800;color:#63b3ed;letter-spacing:1px;}
+.home-header p{font-size:10px;color:#718096;margin-top:2px;}
+.sync-row{display:flex;align-items:center;gap:6px;font-size:10px;color:#718096;}
+.sdot{width:8px;height:8px;border-radius:50%;background:#4a5568;transition:background .3s;}
+.sdot.on{background:#68d391;box-shadow:0 0 6px #68d39188;}
+.sdot.err{background:#fc8181;}
+.home-body{flex:1;padding:20px;max-width:900px;margin:0 auto;width:100%;}
+.home-body h2{font-size:13px;font-weight:700;color:#a0aec0;margin-bottom:14px;text-transform:uppercase;letter-spacing:1px;}
+.upload-zone{border:2px dashed #2d3748;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:24px;background:#141820;}
+.upload-zone:hover{border-color:#63b3ed;background:#1a2035;}
+.upload-zone .icon{font-size:32px;margin-bottom:8px;}
+.upload-zone .title{font-size:13px;font-weight:700;color:#63b3ed;}
+.upload-zone .sub{font-size:11px;color:#718096;margin-top:4px;}
+#upload-status{font-size:11px;margin-top:10px;min-height:16px;text-align:center;}
+.plans-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;}
+.plan-card{background:#141820;border:1px solid #2d3748;border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;position:relative;}
+.plan-card:hover{border-color:#4a90d9;background:#1a2035;transform:translateY(-1px);}
+.plan-card .pc-name{font-size:12px;font-weight:800;color:#e2e8f0;margin-bottom:2px;}
+.plan-card .pc-sub{font-size:10px;color:#718096;margin-bottom:10px;}
+.plan-card .pc-stats{display:flex;gap:10px;margin-bottom:10px;}
+.plan-card .pc-stat{text-align:center;}
+.plan-card .pc-stat .v{font-size:15px;font-weight:800;}
+.plan-card .pc-stat .l{font-size:8px;text-transform:uppercase;color:#718096;}
+.plan-card .pc-bar{height:4px;background:#2d3748;border-radius:2px;overflow:hidden;margin-bottom:3px;}
+.plan-card .pc-fill-n{height:100%;background:linear-gradient(90deg,#276749,#68d391);border-radius:2px;transition:width .4s;}
+.plan-card .pc-fill-f{height:100%;background:linear-gradient(90deg,#2b6cb0,#63b3ed);border-radius:2px;transition:width .4s;}
+.plan-card .pc-date{font-size:9px;color:#4a5568;margin-top:6px;}
+.plan-card .pc-del{position:absolute;top:10px;right:10px;background:none;border:none;color:#4a5568;cursor:pointer;font-size:14px;padding:2px 5px;border-radius:3px;}
+.plan-card .pc-del:hover{color:#fc8181;background:#2d1515;}
+.vn{color:#68d391;} .vf{color:#63b3ed;} .vr{color:#fc8181;}
+.empty-state{text-align:center;padding:40px 20px;color:#4a5568;}
+.empty-state .ei{font-size:40px;margin-bottom:10px;}
+.empty-state p{font-size:13px;}
+#screen-visor{display:none;flex-direction:column;height:100vh;}
+.visor-header{background:#0f1117;border-bottom:1px solid #2d3748;padding:7px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+.vh-left{display:flex;align-items:center;gap:10px;}
+.back-btn{background:none;border:1px solid #2d3748;border-radius:5px;color:#a0aec0;cursor:pointer;font-size:11px;padding:4px 9px;display:flex;align-items:center;gap:4px;}
+.back-btn:hover{border-color:#63b3ed;color:#63b3ed;}
+.vht h1{font-size:13px;font-weight:800;color:#63b3ed;}
+.vht p{font-size:10px;color:#718096;}
+.hs{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+.stat{text-align:center;min-width:46px;} .stat .v{font-size:15px;font-weight:800;} .stat .l{font-size:8px;text-transform:uppercase;color:#718096;}
+.pbw{width:120px;} .pbl{display:flex;justify-content:space-between;font-size:9px;color:#718096;margin-bottom:1px;}
+.pb{height:4px;background:#2d3748;border-radius:2px;overflow:hidden;margin-bottom:3px;}
+.pbn{height:100%;background:linear-gradient(90deg,#276749,#68d391);border-radius:2px;transition:width .3s;}
+.pbf{height:100%;background:linear-gradient(90deg,#2b6cb0,#63b3ed);border-radius:2px;transition:width .3s;}
+.hbtn{padding:5px 9px;border:none;border-radius:5px;color:#fff;font-size:10px;font-weight:700;cursor:pointer;}
+.visor-main{display:flex;flex:1;overflow:hidden;}
+.sb{width:215px;background:#141820;border-right:1px solid #2d3748;display:flex;flex-direction:column;overflow:hidden;}
+.sb-tabs{display:flex;border-bottom:1px solid #2d3748;}
+.tb{flex:1;padding:7px;font-size:10px;font-weight:700;text-align:center;cursor:pointer;border:none;background:transparent;color:#718096;border-bottom:2px solid transparent;}
+.tb.active{color:#63b3ed;border-bottom-color:#63b3ed;background:#1a2035;}
+.sbl{flex:1;overflow-y:auto;padding:5px;}
+.card{border:1px solid #2d3748;border-radius:5px;padding:6px 8px;margin-bottom:3px;cursor:pointer;display:flex;align-items:center;gap:6px;background:#1a2035;}
+.card.done{border-color:#276749!important;background:#0d1f14;} .card.sel{border-color:#f6ad55!important;background:#1f1a08!important;}
+.cico{width:20px;height:20px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:800;flex-shrink:0;}
+.sq{border-radius:3px!important;} .cdot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ci{flex:1;} .cn{font-size:10px;font-weight:700;} .cl{font-size:9px;color:#718096;} .cm{font-size:9px;}
+#mwrap{flex:1;position:relative;} #map{width:100%;height:100%;}
+.pan{position:absolute;top:10px;left:225px;z-index:1000;background:rgba(10,12,18,.97);border:1px solid #2d3748;border-radius:8px;padding:12px 14px;min-width:205px;display:none;}
+.pan h3{font-size:13px;font-weight:800;margin-bottom:3px;} .pan p{font-size:11px;color:#a0aec0;margin-bottom:2px;}
+.ptag{display:inline-block;font-size:9px;font-weight:700;padding:1px 7px;border-radius:10px;margin-bottom:7px;border:1px solid;}
+.pbtn{margin-top:8px;padding:7px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;width:100%;}
+.ins{background:#276749;color:#fff;} .rem{background:#742a2a;color:#fff;}
+.ins2{background:#2b6cb0;color:#fff;margin-top:5px;} .rem2{background:#4a2010;color:#fff;margin-top:5px;}
+.pclose{position:absolute;top:7px;right:9px;background:none;border:none;color:#718096;cursor:pointer;font-size:15px;}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:2000;display:none;align-items:center;justify-content:center;}
+.mbg.on{display:flex;}
+.mbox{background:#1a2035;border:1px solid #2d3748;border-radius:10px;padding:16px;width:380px;max-width:94vw;}
+.mbox h3{font-size:13px;font-weight:800;color:#63b3ed;margin-bottom:8px;} .mbox p{font-size:11px;color:#a0aec0;margin-bottom:10px;}
+textarea{width:100%;height:155px;background:#0f1117;border:1px solid #2d3748;border-radius:6px;color:#e2e8f0;font-size:11px;font-family:monospace;padding:8px;resize:none;line-height:1.7;}
+textarea:focus{outline:none;border-color:#63b3ed;}
+.mbtns{display:flex;gap:8px;margin-top:10px;} .mbtn{flex:1;padding:7px;border:none;border-radius:5px;cursor:pointer;font-size:11px;font-weight:700;}
+.mbtn.ok{background:#276749;color:#fff;} .mbtn.cx{background:#2d3748;color:#a0aec0;}
+.leg{position:absolute;bottom:14px;right:10px;z-index:1000;background:rgba(10,12,18,.93);border:1px solid #2d3748;border-radius:8px;padding:8px 11px;font-size:10px;}
+.leg h4{font-size:9px;letter-spacing:1px;color:#718096;margin-bottom:4px;text-transform:uppercase;}
+.lr{display:flex;align-items:center;gap:5px;margin-bottom:3px;} .ll{width:18px;height:3px;border-radius:2px;}
+.lc{width:9px;height:9px;border-radius:50%;border:2px solid;} .lsq{width:9px;height:9px;border-radius:2px;border:2px solid;}
+::-webkit-scrollbar{width:3px;} ::-webkit-scrollbar-track{background:#141820;} ::-webkit-scrollbar-thumb{background:#2d3748;border-radius:2px;}
+</style>
+</head>
+<body>
+
+<div id="screen-home">
+  <div class="home-header">
+    <div>
+      <h1>&#128225; Visor FTTH — NOVUS</h1>
+      <p>Planos de distribucion de fibra optica</p>
+    </div>
+    <div class="sync-row">
+      <div class="sdot" id="H-SD"></div>
+      <span id="H-SL">Conectando...</span>
+    </div>
+  </div>
+  <div class="home-body">
+    <div class="upload-zone" id="upload-zone">
+      <div class="icon">&#128196;</div>
+      <div class="title">Cargar nuevo plano DXF</div>
+      <div class="sub">Clic aqui o arrastra el archivo .DXF</div>
+      <input type="file" id="DXF-INPUT" accept=".dxf" style="display:none">
+      <div id="upload-status"></div>
+    </div>
+    <h2>Planos registrados</h2>
+    <div class="plans-grid" id="plans-grid">
+      <div class="empty-state"><div class="ei">&#128220;</div><p>Aun no hay planos. Carga tu primer DXF.</p></div>
+    </div>
+  </div>
+</div>
+
+<div id="screen-visor">
+  <div class="visor-header">
+    <div class="vh-left">
+      <button class="back-btn" id="btn-back">&#8592; Planos</button>
+      <div class="vht"><h1 id="V-TITLE">ODN</h1><p id="V-SUB"></p></div>
+    </div>
+    <div class="hs">
+      <div class="sync-row"><div class="sdot" id="V-SD"></div><span id="V-SL" style="color:#718096;font-size:10px">Conectando...</span></div>
+      <div class="stat"><div class="v vn" id="SN">0/0</div><div class="l">NAPs inst.</div></div>
+      <div class="stat"><div class="v vf" id="SF">0/0</div><div class="l">Tramos</div></div>
+      <div class="stat"><div class="v vf" id="SM">0 m</div><div class="l">Tendidos</div></div>
+      <div class="stat"><div class="v vr" id="SR">0 m</div><div class="l">Pendientes</div></div>
+      <div class="pbw">
+        <div class="pbl"><span>NAPs</span><span id="PN">0%</span></div>
+        <div class="pb"><div class="pbn" id="BN" style="width:0"></div></div>
+        <div class="pbl"><span>Fibra</span><span id="PF">0%</span></div>
+        <div class="pb"><div class="pbf" id="BF" style="width:0"></div></div>
+      </div>
+      <button class="hbtn" style="background:#2b6cb0" id="btn-rep">&#128203; Reporte</button>
+      <button class="hbtn" style="background:#4a1515" id="btn-rst">&#128465; Reset</button>
+    </div>
+  </div>
+  <div class="visor-main">
+    <div class="sb">
+      <div class="sb-tabs">
+        <button class="tb active" id="TN">NAPs</button>
+        <button class="tb" id="TF">Fibra</button>
+      </div>
+      <div class="sbl" id="LN"></div>
+      <div class="sbl" id="LF" style="display:none"></div>
+    </div>
+    <div id="mwrap">
+      <div id="map"></div>
+      <div class="pan" id="PAN">
+        <button class="pclose" id="btn-cls">&#x2715;</button>
+        <h3 id="PT"></h3><span class="ptag" id="PG"></span>
+        <p id="PS"></p><p id="PD"></p><div id="PB"></div>
+      </div>
+      <div class="leg">
+        <h4>Fibra 1 Hilo</h4>
+        <div class="lr"><div class="ll" style="background:#ef4444"></div><span>50m</span></div>
+        <div class="lr"><div class="ll" style="background:#f97316"></div><span>100m</span></div>
+        <div class="lr"><div class="ll" style="background:#eab308"></div><span>150m</span></div>
+        <div class="lr"><div class="ll" style="background:#22c55e"></div><span>200m</span></div>
+        <div class="lr"><div class="ll" style="background:#a855f7"></div><span>300m</span></div>
+        <div class="lr"><div class="ll" style="background:#374151;border-top:1px dashed #6b7280"></div><span>Pendiente</span></div>
+        <div style="margin-top:4px;padding-top:4px;border-top:1px solid #2d3748">
+          <div class="lr"><div class="lc" style="border-color:#68d391;background:#0a2018"></div><span>NAP-L inst.</span></div>
+          <div class="lr"><div class="lsq" style="border-color:#68d391;background:#0a2018"></div><span>NAP-F inst.</span></div>
+          <div class="lr"><div class="lc" style="border-color:#4a5568;background:#1a2035"></div><span>Pendiente</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mbg" id="mr">
+  <div class="mbox">
+    <h3>&#128203; Reporte de campo</h3>
+    <p>Solo marca fibra tendida. Las NAPs se marcan manualmente.</p>
+    <textarea id="TXT" placeholder="ODN al nap21&#10;Nap21 al nap22&#10;Nap22 al nap23"></textarea>
+    <div class="mbtns">
+      <button class="mbtn ok" id="btn-apl">&#10003; Aplicar</button>
+      <button class="mbtn cx" id="btn-crep">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var FB = "https://visor-ftth-novus-default-rtdb.firebaseio.com";
+var FTC = {"FIBRA 1H(50m)":"#ef4444","FIBRA 1H(100m)":"#f97316","FIBRA 1H(150m)":"#eab308","FIBRA 1H(200m)":"#22c55e","FIBRA 1H(300m)":"#a855f7"};
+function G(id){ return document.getElementById(id); }
+function sTag(el,t,c){ el.textContent=t; el.style.cssText="background:"+c+"22;border-color:"+c+"66;color:"+c; }
+
+function fbGet(path,cb){ fetch(FB+"/"+path+".json").then(function(r){return r.json();}).then(cb).catch(function(){cb(null);}); }
+function fbSet(path,data){ fetch(FB+"/"+path+".json",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).catch(function(){}); }
+function fbPatch(path,data){ fetch(FB+"/"+path+".json",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).catch(function(){}); }
+function fbDel(path){ fetch(FB+"/"+path+".json",{method:"DELETE"}).catch(function(){}); }
+
+var _sse=null;
+function fbListen(path,onData){
+  if(_sse)_sse.close();
+  _sse=new EventSource(FB+"/"+path+".json?accept=text/event-stream");
+  _sse.addEventListener("put",function(e){ try{ onData(JSON.parse(e.data)); }catch(err){} setSyncV(true); });
+  _sse.addEventListener("patch",function(e){ try{ onData({path:"/",data:JSON.parse(e.data)}); }catch(err){} setSyncV(true); });
+  _sse.onerror=function(){ setSyncV(false); };
+  _sse.onopen=function(){ setSyncV(true); };
+}
+function fbStopListen(){ if(_sse){_sse.close();_sse=null;} }
+function setSyncH(ok){ G("H-SD").className="sdot"+(ok?" on":" err"); G("H-SL").textContent=ok?"En linea":"Sin conexion"; }
+function setSyncV(ok){ G("V-SD").className="sdot"+(ok?" on":" err"); G("V-SL").textContent=ok?"En linea":"Sin conexion"; }
+
+var allPlans={};
+function loadPlans(){
+  fbGet("plans",function(data){ setSyncH(true); allPlans=data||{}; renderPlans(); });
+  var pSse=new EventSource(FB+"/plans.json?accept=text/event-stream");
+  pSse.addEventListener("put",function(e){
+    try{ var msg=JSON.parse(e.data);
+      if(msg.path==="/"&&msg.data){allPlans=msg.data;renderPlans();}
+      else if(msg.path&&msg.data){var k=msg.path.replace("/","");if(!allPlans[k])allPlans[k]={};Object.assign(allPlans[k],msg.data);renderPlans();}
+    }catch(err){} setSyncH(true);
+  });
+  pSse.addEventListener("patch",function(e){
+    try{ var msg=JSON.parse(e.data);
+      if(msg.path&&msg.data){var k=msg.path.replace("/","");if(!allPlans[k])allPlans[k]={};Object.assign(allPlans[k],msg.data);renderPlans();}
+    }catch(err){} setSyncH(true);
+  });
+  pSse.onerror=function(){setSyncH(false);}; pSse.onopen=function(){setSyncH(true);};
+  var prSse=new EventSource(FB+"/progress.json?accept=text/event-stream");
+  prSse.addEventListener("put",function(e){
+    try{ var msg=JSON.parse(e.data); if(!msg.data)return;
+      var parts=msg.path.split("/").filter(Boolean);
+      if(parts.length>=1&&allPlans[parts[0]])recalcPlanStats(parts[0]);
+    }catch(err){}
+  });
+  prSse.addEventListener("patch",function(e){
+    try{ var msg=JSON.parse(e.data); if(!msg.data)return;
+      var parts=msg.path.split("/").filter(Boolean);
+      if(parts.length>=1&&allPlans[parts[0]])recalcPlanStats(parts[0]);
+    }catch(err){}
+  });
+}
+function recalcPlanStats(planKey){
+  fbGet("progress/"+planKey,function(prog){
+    if(!prog||!allPlans[planKey])return;
+    var p=allPlans[planKey];
+    var naps=JSON.parse(p.naps||"[]"),segs=JSON.parse(p.segs||"[]");
+    var n=prog.n||{},s=prog.s||{};
+    var nD=naps.filter(function(x){return n[x.id]===true;}).length;
+    var sD=segs.filter(function(x){return s[x.id]===true;}).length;
+    var mD=segs.filter(function(x){return s[x.id]===true;}).reduce(function(a,x){return a+x.length;},0);
+    allPlans[planKey].napDone=nD; allPlans[planKey].segDone=sD; allPlans[planKey].mDone=parseFloat(mD.toFixed(2));
+    fbPatch("plans/"+planKey,{napDone:nD,segDone:sD,mDone:allPlans[planKey].mDone});
+    renderPlans();
+  });
+}
+function renderPlans(){
+  var grid=G("plans-grid"),keys=Object.keys(allPlans);
+  if(!keys.length){grid.innerHTML='<div class="empty-state"><div class="ei">&#128220;</div><p>Aun no hay planos.</p></div>';return;}
+  keys.sort(function(a,b){return(allPlans[b].ts||0)-(allPlans[a].ts||0);});
+  grid.innerHTML=keys.map(function(k){
+    var p=allPlans[k],nT=p.napTotal||0,nD=p.napDone||0,sT=p.segTotal||0,sD=p.segDone||0,mT=p.mTotal||0,mD=p.mDone||0,mR=mT-mD;
+    var pn=nT?Math.round(nD/nT*100):0,pf=mT?Math.round(mD/mT*100):0;
+    var dt=p.ts?new Date(p.ts).toLocaleDateString("es-MX",{day:"2-digit",month:"short",year:"numeric"}):"";
+    return '<div class="plan-card" onclick="openPlan(\''+k+'\')">'
+      +'<button class="pc-del" onclick="event.stopPropagation();deletePlan(\''+k+'\')">&#128465;</button>'
+      +'<div class="pc-name">'+p.name+'</div>'
+      +'<div class="pc-sub">'+(p.street||"")+(p.street?" &middot; ":"")+(Math.round(mT)||0)+' m diseno</div>'
+      +'<div class="pc-stats">'
+      +'<div class="pc-stat"><div class="v vn">'+nD+'/'+nT+'</div><div class="l">NAPs inst.</div></div>'
+      +'<div class="pc-stat"><div class="v vf">'+sD+'/'+sT+'</div><div class="l">Tramos</div></div>'
+      +'<div class="pc-stat"><div class="v vr">'+Math.round(mR)+' m</div><div class="l">Pendientes</div></div>'
+      +'</div>'
+      +'<div class="pc-bar"><div class="pc-fill-n" style="width:'+pn+'%"></div></div>'
+      +'<div class="pc-bar"><div class="pc-fill-f" style="width:'+pf+'%"></div></div>'
+      +'<div class="pc-date">Cargado: '+dt+'</div></div>';
+  }).join("");
+}
+function deletePlan(key){
+  if(!confirm("Eliminar "+allPlans[key].name+"?"))return;
+  delete allPlans[key]; renderPlans(); fbDel("plans/"+key); fbDel("progress/"+key);
+}
+
+function parseDxf(text){
+  var lines=text.split("\n").map(function(l){return l.trim();}),N=lines.length;
+  function dd(a,b){return Math.sqrt((b[0]-a[0])*(b[0]-a[0])+(b[1]-a[1])*(b[1]-a[1]));}
+  function plen(pts){var t=0;for(var i=0;i<pts.length-1;i++)t+=dd(pts[i],pts[i+1]);return t;}
+  function u2l(e,n){
+    var k0=0.9996,ev=0.00669438,e2=ev*ev,e3=e2*ev,ep2=ev/(1-ev),a=6378137;
+    var x=e-500000,y=n,m=y/k0,mu=m/(a*(1-ev/4-3*e2/64-5*e3/256));
+    var pr=(3*ev/2-27*e3/32)*Math.sin(2*mu)+(21*e2/16)*Math.sin(4*mu)+(151*e3/96)*Math.sin(6*mu);
+    var p1=mu+pr,ps=Math.sin(p1),pc=Math.cos(p1),pt=ps/pc,pt2=pt*pt,ps2=ps*ps;
+    var N1=a/Math.sqrt(1-ev*ps2),R1=a*(1-ev)/Math.pow(1-ev*ps2,1.5);
+    var D=x/(N1*k0),D2=D*D,D3=D2*D,D4=D3*D,D5=D4*D;
+    var lat=p1-(N1*pt/R1)*(D2/2-D4/24*(5+3*pt2+10*ep2));
+    var lon=(-99*Math.PI/180)+(D-D3/6*(1+2*pt2+ep2)+D5/120*(5+28*pt2))/pc;
+    return[parseFloat((lat*180/Math.PI).toFixed(6)),parseFloat((lon*180/Math.PI).toFixed(6))];
+  }
+  var fsegs=[],i=0;
+  while(i<N-1){
+    if(lines[i]==="0"&&lines[i+1]==="LWPOLYLINE"){
+      var lyr="",verts=[],j=i+2;
+      while(j<N-1){var c=lines[j],v=lines[j+1];if(c==="0")break;if(c==="8")lyr=v;else if(c==="10"){var xv=parseFloat(v);if(j+2<N&&lines[j+2]==="20"){verts.push([xv,parseFloat(lines[j+3])]);j+=2;}}j+=2;}
+      if(FTC[lyr]&&verts.length>=2)fsegs.push({lyr:lyr,len:parseFloat(plen(verts).toFixed(2)),verts:verts,s:verts[0],e:verts[verts.length-1]});
+      i=j;
+    }else i+=2;
+  }
+  var napMap={},odnP=null,odnName="ODN",odnSt="";
+  i=0;
+  while(i<N-1){
+    if(lines[i]==="0"&&lines[i+1]==="INSERT"){
+      var lyr2="",blk="",xi=null,yi=null,attrs=[],j2=i+2;
+      while(j2<N-1){
+        var ci=lines[j2],vi=lines[j2+1];
+        if(ci==="0"&&vi!=="ATTRIB"&&vi!=="SEQEND")break;
+        if(ci==="0"&&vi==="ATTRIB"){var ak=j2+2,at="",av="";while(ak<N-1){if(lines[ak]==="0")break;if(lines[ak]==="2")at=lines[ak+1];if(lines[ak]==="1")av=lines[ak+1];ak+=2;}attrs.push({t:at,v:av});j2=ak;continue;}
+        if(ci==="8")lyr2=vi;else if(ci==="2")blk=vi;else if(ci==="10")xi=parseFloat(vi);else if(ci==="20")yi=parseFloat(vi);
+        j2+=2;
+      }
+      if(xi!==null&&yi!==null){
+        var nom=(attrs.find(function(a){return a.t==="NOMBRE";})||{v:""}).v;
+        if(blk==="CP"||lyr2==="IZZI_ODN_A"||lyr2==="IZZI_ODN-A"){
+          odnP=[xi,yi];odnName=nom||"ODN";
+          var c1=(attrs.find(function(a){return a.t==="CALLE1";})||{v:""}).v;
+          var c2=(attrs.find(function(a){return a.t==="CALLE2";})||{v:""}).v;
+          odnSt=c1+(c2?" esq. "+c2:"");
+        }else if((blk==="CL"||blk==="CF")&&nom&&nom.indexOf("NAP")>=0){
+          var nid=nom.replace(/.*NAP0*(\d+)$/,"NAP$1");
+          napMap[nid]={tp:blk==="CF"?"NAP-F":"NAP-L",utm:[xi,yi]};
+        }
+      }
+      i=j2;
+    }else i+=2;
+  }
+  if(!odnP)return{err:"No se encontro la ODN en el DXF."};
+  if(!Object.keys(napMap).length)return{err:"No se encontraron NAPs en el DXF."};
+  if(!fsegs.length)return{err:"No se encontraron tramos de fibra de 1 hilo."};
+  var odnLL=u2l(odnP[0],odnP[1]),THR=25;
+  function closest(pt){var best="?",bd=THR,dO=dd(pt,odnP);if(dO<bd){best="ODN";bd=dO;}for(var nid in napMap){var dv=dd(pt,napMap[nid].utm);if(dv<bd){best=nid;bd=dv;}}return best;}
+  var napsArr=Object.keys(napMap).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});}).map(function(id){var ll=u2l(napMap[id].utm[0],napMap[id].utm[1]);return{id:id,lat:ll[0],lon:ll[1],type:napMap[id].tp};});
+  var segsArr=fsegs.map(function(s,i){return{id:"S"+(i<9?"0":"")+(i+1),layer:s.lyr,length:s.len,from:closest(s.s),to:closest(s.e),coords:s.verts.map(function(v){return u2l(v[0],v[1]);})};});
+  return{name:odnName,street:odnSt,odnLat:odnLL[0],odnLon:odnLL[1],naps:napsArr,segs:segsArr,mTotal:parseFloat(segsArr.reduce(function(a,s){return a+s.length;},0).toFixed(2))};
+}
+
+G("upload-zone").onclick=function(){G("DXF-INPUT").click();};
+G("upload-zone").ondragover=function(e){e.preventDefault();G("upload-zone").style.borderColor="#63b3ed";};
+G("upload-zone").ondragleave=function(){G("upload-zone").style.borderColor="#2d3748";};
+G("upload-zone").ondrop=function(e){e.preventDefault();G("upload-zone").style.borderColor="#2d3748";var file=e.dataTransfer.files[0];if(file&&file.name.match(/\.dxf$/i))processDxfFile(file);};
+G("DXF-INPUT").addEventListener("change",function(){if(this.files[0])processDxfFile(this.files[0]);this.value="";});
+function processDxfFile(file){
+  var st=G("upload-status");st.style.color="#a0aec0";st.textContent="Procesando "+file.name+"...";
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var result=parseDxf(ev.target.result);
+    if(result.err){st.style.color="#fc8181";st.textContent=result.err;return;}
+    var key=result.name.replace(/[^A-Z0-9]/gi,"_").toUpperCase();
+    var planMeta={name:result.name,street:result.street,napTotal:result.naps.length,segTotal:result.segs.length,mTotal:result.mTotal,napDone:0,segDone:0,mDone:0,ts:Date.now(),naps:JSON.stringify(result.naps),segs:JSON.stringify(result.segs),odnLat:result.odnLat,odnLon:result.odnLon};
+    fbSet("plans/"+key,planMeta);allPlans[key]=planMeta;renderPlans();
+    st.style.color="#68d391";st.textContent="Plano "+result.name+" cargado.";
+    setTimeout(function(){st.textContent="";},3000);
+    openPlan(key);
+  };
+  reader.readAsText(file,"latin1");
+}
+
+var CUR=null,NAPS=[],SEGS=[],TOTM=0,ST={n:{},s:{}},ML={},MM={},pT=null,pI=null,mapObj=null;
+
+function openPlan(key){
+  var meta=allPlans[key];if(!meta)return;
+  CUR=key;
+  NAPS=JSON.parse(meta.naps||"[]");SEGS=JSON.parse(meta.segs||"[]");TOTM=meta.mTotal||0;
+  ST={n:{},s:{}};
+  NAPS.forEach(function(n){ST.n[n.id]=false;});SEGS.forEach(function(s){ST.s[s.id]=false;});
+  G("V-TITLE").textContent=meta.name;
+  G("V-SUB").textContent=(meta.street||"")+(meta.street?" \u00b7 ":"")+Math.round(TOTM)+" m diseno";
+  G("TN").textContent="NAPs ("+NAPS.length+")";G("TF").textContent="Fibra ("+SEGS.length+")";
+  G("screen-home").style.display="none";G("screen-visor").style.display="flex";
+  if(mapObj){mapObj.remove();mapObj=null;ML={};MM={};}
+  mapObj=L.map("map",{zoomControl:true,attributionControl:false}).setView([meta.odnLat,meta.odnLon],17);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:20}).addTo(mapObj);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",{maxZoom:20,opacity:0.55}).addTo(mapObj);
+  L.marker([meta.odnLat,meta.odnLon],{icon:L.divIcon({className:"",html:"<div style=\"font-size:22px;line-height:1;text-shadow:0 0 8px #f6ad55\">&#11088;</div>",iconSize:[22,22],iconAnchor:[11,11]}),zIndex:50}).addTo(mapObj).bindTooltip(meta.name,{direction:"top"});
+  mapObj.on("click",function(){cP();});
+  fbGet("progress/"+key,function(data){
+    if(data&&data.n)Object.assign(ST.n,data.n);
+    if(data&&data.s)Object.assign(ST.s,data.s);
+    NAPS.forEach(function(n){if(ST.n[n.id]===undefined)ST.n[n.id]=false;});
+    SEGS.forEach(function(s){if(ST.s[s.id]===undefined)ST.s[s.id]=false;});
+    drawAll();rSB();uSt();
+    var lastWrite=0;
+    window._setLastWrite=function(){lastWrite=Date.now();};
+    fbListen("progress/"+key,function(msg){
+      var data=msg.data;if(!data)return;
+      if(Date.now()-lastWrite<2000)return;
+      if(msg.path==="/"){
+        // KEY FIX: never call drawAll from SSE - update each marker individually
+        if(data.n)Object.keys(data.n).forEach(function(nid){ST.n[nid]=data.n[nid];if(MM[nid])rN(nid);});
+        if(data.s)Object.keys(data.s).forEach(function(sid){ST.s[sid]=data.s[sid];if(ML[sid])rS(sid);});
+        rSB();uSt();
+      }else if(msg.path.indexOf("/n/")===0){
+        var nid=msg.path.replace("/n/","");ST.n[nid]=data;if(MM[nid])rN(nid);rSB();uSt();rP();
+      }else if(msg.path.indexOf("/s/")===0){
+        var sid=msg.path.replace("/s/","");ST.s[sid]=data;if(ML[sid])rS(sid);rSB();uSt();rP();
+      }
+    });
+  });
+}
+
+function goHome(){
+  fbStopListen();if(mapObj){mapObj.remove();mapObj=null;ML={};MM={};}
+  CUR=null;pT=null;pI=null;
+  G("PAN").style.display="none";G("mr").classList.remove("on");
+  G("screen-visor").style.display="none";G("screen-home").style.display="flex";
+}
+
+function nIco(id){
+  var inst=ST.n[id],n=NAPS.find(function(x){return x.id===id;}),col=inst?"#68d391":"#4a5568",bg=inst?"#0a2018":"#101418",r=n.type==="NAP-F"?"3px":"50%",gw=inst?"box-shadow:0 0 7px #68d39188;":"";
+  return L.divIcon({className:"",html:"<div style=\"width:22px;height:22px;border-radius:"+r+";border:2px solid "+col+";background:"+bg+";display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:"+col+";"+gw+"\">"+id.replace("NAP","")+"</div>",iconSize:[22,22],iconAnchor:[11,11]});
+}
+function sSty(id){
+  var inst=ST.s[id],s=SEGS.find(function(x){return x.id===id;});
+  return{color:inst?FTC[s.layer]:"#374151",weight:inst?5:2,opacity:inst?0.95:0.65,dashArray:inst?null:"8 5"};
+}
+function drawAll(){
+  Object.values(ML).forEach(function(l){mapObj.removeLayer(l);});Object.values(MM).forEach(function(m){mapObj.removeLayer(m);});ML={};MM={};
+  SEGS.forEach(function(s){var pl=L.polyline(s.coords,sSty(s.id)).addTo(mapObj);pl.on("click",(function(sid){return function(e){L.DomEvent.stopPropagation(e);openP("s",sid);};})(s.id));ML[s.id]=pl;});
+  NAPS.forEach(function(n){var m=L.marker([n.lat,n.lon],{icon:nIco(n.id),zIndex:ST.n[n.id]?20:5}).addTo(mapObj);m.on("click",(function(nid){return function(e){L.DomEvent.stopPropagation(e);openP("n",nid);};})(n.id));MM[n.id]=m;});
+}
+function rN(id){if(MM[id]){MM[id].setIcon(nIco(id));MM[id].setZIndex(ST.n[id]?20:5);}}
+function rS(id){if(ML[id])ML[id].setStyle(sSty(id));}
+
+function openP(t,id){
+  pT=t;pI=id;G("PAN").style.display="block";
+  document.querySelectorAll(".card").forEach(function(c){c.classList.remove("sel");});
+  var c=G("C"+id);if(c){c.classList.add("sel");c.scrollIntoView({block:"nearest"});}
+  rP();
+  if(t==="n"){var nd=NAPS.find(function(x){return x.id===id;});mapObj.flyTo([nd.lat,nd.lon],Math.max(mapObj.getZoom(),19),{duration:0.5});}
+  else{var sd=SEGS.find(function(x){return x.id===id;});var la=sd.coords.map(function(c){return c[0];});var lo=sd.coords.map(function(c){return c[1];});mapObj.flyTo([(Math.min.apply(null,la)+Math.max.apply(null,la))/2,(Math.min.apply(null,lo)+Math.max.apply(null,lo))/2],Math.max(mapObj.getZoom(),19),{duration:0.5});}
+}
+function rP(){
+  if(!pI)return;var id=pI,t=pT;
+  if(t==="n"){
+    var n=NAPS.find(function(x){return x.id===id;}),inst=ST.n[id];
+    G("PT").textContent=id;sTag(G("PG"),n.type,"#68d391");
+    G("PS").textContent=inst?"INSTALADA":"PENDIENTE";G("PD").textContent=n.lat+", "+n.lon;
+    var b=document.createElement("button");b.className="pbtn "+(inst?"rem2":"ins2");b.textContent=inst?"Quitar instalacion":"Marcar como instalada";
+    (function(cid){b.onclick=function(){tN(cid);};})(id);G("PB").innerHTML="";G("PB").appendChild(b);
+  }else{
+    var s=SEGS.find(function(x){return x.id===id;}),inst2=ST.s[id],col=FTC[s.layer];
+    G("PT").textContent=s.from+" - "+s.to;sTag(G("PG"),s.layer,col);
+    G("PS").textContent=s.length+" m "+(inst2?"TENDIDO":"PENDIENTE");G("PD").textContent="";
+    var b2=document.createElement("button");b2.className="pbtn "+(inst2?"rem":"ins");b2.textContent=inst2?"Quitar tendido":"Marcar como tendido";
+    (function(cid){b2.onclick=function(){tS(cid);};})(id);G("PB").innerHTML="";G("PB").appendChild(b2);
+  }
+}
+function cP(){G("PAN").style.display="none";document.querySelectorAll(".card").forEach(function(c){c.classList.remove("sel");});pT=null;pI=null;}
+
+function updatePlanStats(){
+  if(!CUR)return;
+  var nD=NAPS.filter(function(n){return ST.n[n.id];}).length;
+  var sD=SEGS.filter(function(s){return ST.s[s.id];}).length;
+  var mD=SEGS.filter(function(s){return ST.s[s.id];}).reduce(function(a,s){return a+s.length;},0);
+  fbPatch("plans/"+CUR,{napDone:nD,segDone:sD,mDone:parseFloat(mD.toFixed(2))});
+  if(allPlans[CUR]){allPlans[CUR].napDone=nD;allPlans[CUR].segDone=sD;allPlans[CUR].mDone=mD;}
+}
+
+// KEY FIX: _setLastWrite is called FIRST, before any state change
+function tN(id){
+  if(window._setLastWrite)window._setLastWrite();
+  ST.n[id]=!ST.n[id];
+  rN(id);rSB();uSt();rP();
+  var patch={};patch[id]=ST.n[id];
+  fbPatch("progress/"+CUR+"/n",patch);
+  updatePlanStats();
+}
+function tS(id){
+  if(window._setLastWrite)window._setLastWrite();
+  ST.s[id]=!ST.s[id];
+  rS(id);rSB();uSt();rP();
+  var patch={};patch[id]=ST.s[id];
+  fbPatch("progress/"+CUR+"/s",patch);
+  updatePlanStats();
+}
+
+function showTab(t){G("LN").style.display=t==="n"?"block":"none";G("LF").style.display=t==="f"?"block":"none";G("TN").className="tb"+(t==="n"?" active":"");G("TF").className="tb"+(t==="f"?" active":"");}
+function rSB(){
+  var ln=G("LN");ln.innerHTML="";
+  NAPS.forEach(function(n){
+    var inst=ST.n[n.id],col=inst?"#68d391":"#4a5568";
+    var d=document.createElement("div");d.className="card"+(inst?" done":"");d.id="C"+n.id;
+    var ico=document.createElement("div");ico.className="cico"+(n.type==="NAP-F"?" sq":"");
+    ico.style.cssText="border-color:"+col+";color:"+col+";background:"+(inst?"#0a2018":"#101418");
+    ico.textContent=n.id.replace("NAP","");
+    var ci=document.createElement("div");ci.className="ci";
+    var cn=document.createElement("div");cn.className="cn";cn.textContent=n.id+" "+n.type;
+    var cm=document.createElement("div");cm.className="cm";cm.style.color=col;cm.textContent=inst?"Instalada":"Pendiente";
+    ci.appendChild(cn);ci.appendChild(cm);d.appendChild(ico);d.appendChild(ci);
+    (function(nid){d.onclick=function(){openP("n",nid);};})(n.id);ln.appendChild(d);
+  });
+  var lf=G("LF");lf.innerHTML="";
+  SEGS.forEach(function(s){
+    var inst=ST.s[s.id],col=inst?FTC[s.layer]:"#4a5568";
+    var d=document.createElement("div");d.className="card"+(inst?" done":"");d.id="C"+s.id;
+    var dot=document.createElement("div");dot.className="cdot";dot.style.background=col;
+    var ci=document.createElement("div");ci.className="ci";
+    var cn=document.createElement("div");cn.className="cn";cn.textContent=s.from+" - "+s.to;
+    var cl=document.createElement("div");cl.className="cl";cl.textContent=s.layer;
+    var cm=document.createElement("div");cm.className="cm";cm.style.color=col;cm.textContent=(inst?"Tendido: ":"")+s.length+" m";
+    ci.appendChild(cn);ci.appendChild(cl);ci.appendChild(cm);d.appendChild(dot);d.appendChild(ci);
+    (function(sid){d.onclick=function(){openP("s",sid);};})(s.id);lf.appendChild(d);
+  });
+}
+function uSt(){
+  var nD=NAPS.filter(function(n){return ST.n[n.id];}).length;
+  var sD=SEGS.filter(function(s){return ST.s[s.id];}).length;
+  var mD=SEGS.filter(function(s){return ST.s[s.id];}).reduce(function(a,s){return a+s.length;},0);
+  var mR=TOTM-mD;
+  G("SN").textContent=nD+"/"+NAPS.length;G("SF").textContent=sD+"/"+SEGS.length;
+  G("SM").textContent=Math.round(mD)+" m";G("SR").textContent=Math.round(mR)+" m";
+  var pn=NAPS.length?Math.round(nD/NAPS.length*100):0,pf=TOTM?Math.round(mD/TOTM*100):0;
+  G("PN").textContent=pn+"%";G("BN").style.width=pn+"%";G("PF").textContent=pf+"%";G("BF").style.width=pf+"%";
+}
+function doReset(){
+  if(!confirm("Borrar TODO el avance?"))return;
+  NAPS.forEach(function(n){ST.n[n.id]=false;});SEGS.forEach(function(s){ST.s[s.id]=false;});
+  drawAll();rSB();uSt();cP();fbSet("progress/"+CUR,{n:{},s:{}});updatePlanStats();
+}
+function parseReport(){
+  var lines=G("TXT").value.split("\n").map(function(l){return l.trim().toUpperCase();}).filter(Boolean);
+  var ok=0,patch={};
+  lines.forEach(function(line){
+    var m=line.match(/(ODN|NAP\s*0*(\d+))\s+AL\s+(ODN|NAP\s*0*(\d+))/);if(!m)return;
+    var nr=function(s){return s.replace(/\s+/g,"").replace(/NAP0*(\d+)/,"NAP$1");};
+    var fr=nr(m[1]),to=nr(m[3]);
+    var seg=SEGS.find(function(s){var sf=s.from.toUpperCase(),st=s.to.toUpperCase();return(sf===fr&&st===to)||(sf===to&&st===fr);});
+    if(seg){ST.s[seg.id]=true;rS(seg.id);patch[seg.id]=true;ok++;}
+  });
+  if(ok>0){fbPatch("progress/"+CUR+"/s",patch);updatePlanStats();}
+  rSB();uSt();G("mr").classList.remove("on");
+  alert(ok>0?ok+" tramos marcados.":"No se reconocio ningun tramo.");
+}
+
+G("btn-back").onclick=function(){goHome();};G("TN").onclick=function(){showTab("n");};G("TF").onclick=function(){showTab("f");};
+G("btn-rep").onclick=function(){G("mr").classList.add("on");};G("btn-rst").onclick=function(){doReset();};
+G("btn-cls").onclick=function(){cP();};G("btn-apl").onclick=function(){parseReport();};G("btn-crep").onclick=function(){G("mr").classList.remove("on");};
+loadPlans();
+</script>
+</body>
+</html>
